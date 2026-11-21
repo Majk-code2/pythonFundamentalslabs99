@@ -221,3 +221,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Tennis prediction generated data
+tennis_prediction/data/
+tennis_prediction/models/
+
+# Downloaded learning materials
+mslearn-ml-basics-main/
+mslearn-ml-basics-main.zip
+ice-cream.csv
