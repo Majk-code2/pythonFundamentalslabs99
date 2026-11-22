@@ -77,7 +77,46 @@ FEATURES_BY_LEVEL = {
         ]
     )
 }
+def calculate_market_probabilities(odds_a, odds_b):
 
+    valid_a = (
+        pd.notna(odds_a)
+        and 1.01 <= float(odds_a) <= 20.0
+    )
+
+    valid_b = (
+        pd.notna(odds_b)
+        and 1.01 <= float(odds_b) <= 20.0
+    )
+
+    if not valid_a or not valid_b:
+        return None
+
+    odds_a = float(odds_a)
+    odds_b = float(odds_b)
+
+    raw_a = 1.0 / odds_a
+    raw_b = 1.0 / odds_b
+
+    overround = raw_a + raw_b
+
+    # Odrzucamy podejrzane zestawy kursow.
+    if not 0.97 <= overround <= 1.20:
+        return None
+
+    clean_a = raw_a / overround
+    clean_b = raw_b / overround
+
+    return {
+        "odds_a": odds_a,
+        "odds_b": odds_b,
+        "raw_a": raw_a,
+        "raw_b": raw_b,
+        "clean_a": clean_a,
+        "clean_b": clean_b,
+        "overround": overround,
+        "margin": overround - 1.0,
+    }
 def safe_divide(a, b):
 
     if pd.isna(a) or pd.isna(b) or b == 0:
@@ -394,6 +433,13 @@ for _, match in upcoming.iterrows():
 
     rank_a = match["rank_A"]
     rank_b = match["rank_B"]
+    odds_a = match.get("odds_A")
+    odds_b = match.get("odds_B")
+
+    market = calculate_market_probabilities(
+        odds_a,
+        odds_b
+    )
 
     if (
         player_a_key not in elo_lookup.index
@@ -593,19 +639,80 @@ for _, match in upcoming.iterrows():
     )
 
     probability_b = 1.0 - probability_a
+    if market is not None:
+
+        market_probability_a = market["clean_a"]
+        market_probability_b = market["clean_b"]
+
+        edge_a = (
+            probability_a
+            - market_probability_a
+        )
+
+        edge_b = (
+            probability_b
+            - market_probability_b
+        )
+
+        ev_a = (
+            probability_a
+            * market["odds_a"]
+            - 1.0
+        )
+
+        ev_b = (
+            probability_b
+            * market["odds_b"]
+            - 1.0
+        )
+
+    else:
+
+        market_probability_a = None
+        market_probability_b = None
+
+        edge_a = None
+        edge_b = None
+
+        ev_a = None
+        ev_b = None
 
 
     if probability_a >= probability_b:
 
         predicted_winner = player_a
         model_probability = probability_a
-        winner_odds = match.get("odds_A")
+
+        selected_odds = (
+            market["odds_a"]
+            if market is not None
+            else None
+        )
+
+        selected_market_probability = (
+            market_probability_a
+        )
+
+        selected_edge = edge_a
+        selected_ev = ev_a
 
     else:
 
         predicted_winner = player_b
         model_probability = probability_b
-        winner_odds = match.get("odds_B")
+
+        selected_odds = (
+            market["odds_b"]
+            if market is not None
+            else None
+        )
+
+        selected_market_probability = (
+            market_probability_b
+        )
+
+        selected_edge = edge_b
+        selected_ev = ev_b
 
 
     # Minimalna ilosc historii dla obu zawodnikow
@@ -615,48 +722,38 @@ for _, match in upcoming.iterrows():
     )
 
 
-    # Przygotowanie kursu i porownania z rynkiem
-    market_probability = None
-    probability_edge = None
+     # Fair odds wynikajace z prawdopodobienstwa modelu
     fair_odds = None
 
-    # Fair odds wynikajace z prawdopodobienstwa modelu
     if model_probability > 0:
         fair_odds = 1.0 / model_probability
 
-    # Akceptujemy tylko wiarygodny zakres kursow
-    valid_market_odds = (
-        pd.notna(winner_odds)
-        and 1.01 <= winner_odds <= 20.00
+    market_margin = (
+        market["margin"]
+        if market is not None
+        else None
     )
 
-    if valid_market_odds:
-
-        market_probability = (
-            1.0 / winner_odds
-        )
-
-        probability_edge = (
-            model_probability
-            - market_probability
-        )
-
-    else:
-
-        # Podejrzany lub brakujacy kurs,
-        # np. 100.00, nie jest uzywany
-        winner_odds = None
-        market_probability = None
-        probability_edge = None
-
-    # Klasyfikacja predykcji
+     # Klasyfikacja uwzglednia pewnosc modelu,
+    # przewage nad rynkiem oraz wartosc oczekiwana.
     if not enough_history:
         status = "POMIN: za malo historii"
 
-    elif model_probability >= 0.85:
+    elif market is None:
+        status = "OBSERWACJA: brak pelnych kursow"
+
+    elif (
+        model_probability >= 0.85
+        and selected_edge >= 0.05
+        and selected_ev >= 0.05
+    ):
         status = "MOCNY KANDYDAT"
 
-    elif model_probability >= 0.75:
+    elif (
+        model_probability >= 0.75
+        and selected_edge >= 0.03
+        and selected_ev >= 0.03
+    ):
         status = "KANDYDAT"
 
     elif model_probability >= 0.65:
@@ -695,10 +792,47 @@ for _, match in upcoming.iterrows():
             "predicted_winner": predicted_winner,
             "model_probability": model_probability,
 
+            "probability_A": probability_a,
+            "probability_B": probability_b,
+
             "fair_odds": fair_odds,
-            "market_odds": winner_odds,
-            "market_probability_raw": market_probability,
-            "probability_edge_raw": probability_edge,
+
+            "odds_A": (
+                market["odds_a"]
+                if market is not None
+                else None
+            ),
+
+            "odds_B": (
+                market["odds_b"]
+                if market is not None
+                else None
+            ),
+
+            "market_probability_A_clean": (
+                market_probability_a
+            ),
+
+            "market_probability_B_clean": (
+                market_probability_b
+            ),
+
+            "market_margin": market_margin,
+
+            "edge_A": edge_a,
+            "edge_B": edge_b,
+
+            "ev_A": ev_a,
+            "ev_B": ev_b,
+
+            "selected_odds": selected_odds,
+
+            "selected_market_probability": (
+                selected_market_probability
+            ),
+
+            "selected_edge": selected_edge,
+            "selected_ev": selected_ev,
 
             "status": status
         }
@@ -789,10 +923,48 @@ for _, row in results.iterrows():
     )
 
     print(
-        "Kurs rynkowy:",
+        "Wybrany kurs:",
         (
-            f"{row['market_odds']:.2f}"
-            if pd.notna(row["market_odds"])
+            f"{row['selected_odds']:.2f}"
+            if pd.notna(row["selected_odds"])
+            else "brak"
+        )
+    )
+
+    print(
+        "Rynek bez marzy:",
+        (
+            f"{row['selected_market_probability'] * 100:.2f}%"
+            if pd.notna(
+                row["selected_market_probability"]
+            )
+            else "brak"
+        )
+    )
+
+    print(
+        "Edge modelu:",
+        (
+            f"{row['selected_edge'] * 100:+.2f} pp"
+            if pd.notna(row["selected_edge"])
+            else "brak"
+        )
+    )
+
+    print(
+        "EV przy kursie:",
+        (
+            f"{row['selected_ev'] * 100:+.2f}%"
+            if pd.notna(row["selected_ev"])
+            else "brak"
+        )
+    )
+
+    print(
+        "Marza rynku:",
+        (
+            f"{row['market_margin'] * 100:+.2f}%"
+            if pd.notna(row["market_margin"])
             else "brak"
         )
     )

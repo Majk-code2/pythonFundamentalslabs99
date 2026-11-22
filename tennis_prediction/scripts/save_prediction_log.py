@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CURRENT_FILE = (
     ROOT
     / "data"
-    / "current_predictions_elo.csv"
+    / "current_predictions_elo_return.csv"
 )
 
 LOG_FILE = (
@@ -51,8 +51,18 @@ required_columns = [
     "player_B",
     "predicted_winner",
     "model_probability",
+    "probability_A",
+    "probability_B",
     "fair_odds",
-    "market_odds",
+    "odds_A",
+    "odds_B",
+    "market_probability_A_clean",
+    "market_probability_B_clean",
+    "market_margin",
+    "selected_odds",
+    "selected_market_probability",
+    "selected_edge",
+    "selected_ev",
     "status",
 ]
 
@@ -75,7 +85,7 @@ current["prediction_time_utc"] = (
 )
 
 current["model_version"] = (
-    "logistic_surface_both_elo_v1"
+    "winner_model_v1_elo_return_market"
 )
 
 current["start"] = pd.to_datetime(
