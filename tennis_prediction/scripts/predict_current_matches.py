@@ -28,11 +28,19 @@ UPCOMING_FILE = (
     / "upcoming_atp_with_surface.csv"
 )
 
-MODEL_DATA_FILE = (
-    ROOT
-    / "data"
-    / "model_dataset_surface.csv"
-)
+MODEL_DATA_FILES = {
+    "ATP": (
+        ROOT
+        / "data"
+        / "model_dataset_surface_atp.csv"
+    ),
+
+    "CHALLENGER": (
+        ROOT
+        / "data"
+        / "model_dataset_surface_challenger.csv"
+    )
+}
 
 
 FEATURES = [
@@ -221,37 +229,42 @@ print(
     len(history)
 )
 
+print("\n===== TRENOWANIE MODELI =====")
 
-print("\n===== TRENOWANIE MODELU =====")
+models = {}
+
+for competition_level, model_file in MODEL_DATA_FILES.items():
+
+    model_data = pd.read_csv(model_file)
+
+    model_data[FEATURES] = (
+        model_data[FEATURES]
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+    )
+
+    X_train = model_data[FEATURES]
+    y_train = model_data["A_won"]
+
+    model = LogisticRegression(
+        max_iter=2000
+    )
+
+    model.fit(
+        X_train,
+        y_train
+    )
+
+    models[competition_level] = model
+
+    print(
+        competition_level,
+        "- mecze treningowe:",
+        len(model_data)
+    )
 
 
-model_data = pd.read_csv(MODEL_DATA_FILE)
-
-model_data[FEATURES] = (
-    model_data[FEATURES]
-    .replace([np.inf, -np.inf], np.nan)
-    .fillna(0.0)
-)
-
-
-X_train = model_data[FEATURES]
-y_train = model_data["A_won"]
-
-
-model = LogisticRegression(
-    max_iter=2000
-)
-
-model.fit(
-    X_train,
-    y_train
-)
-
-
-print(
-    "Mecze treningowe:",
-    len(model_data)
-)
+print("\n===== AKTUALNE MECZE =====")
 
 
 print("\n===== AKTUALNE MECZE =====")
@@ -293,6 +306,23 @@ for _, match in upcoming.iterrows():
 
 
     surface = match["surface"]
+
+    competition_level = str(
+        match["competition_level"]
+    ).strip().upper()
+
+    model = models.get(competition_level)
+
+    if model is None:
+        print(
+            "Pominieto mecz bez odpowiedniego modelu:",
+            player_a,
+            "vs",
+            player_b,
+            "| poziom:",
+            competition_level
+        )
+        continue
 
     stats_a = summarize_history(
         history[player_a_key][surface]
@@ -429,11 +459,12 @@ for _, match in upcoming.iterrows():
         status = "POMIN: niska pewnosc"
 
 
-    predictions.append(
+        predictions.append(
         {
             "start": match.get("start"),
             "tournament": match.get("tournament"),
             "surface": surface,
+            "competition_level": competition_level,
 
             "player_A": player_a,
             "rank_A": rank_a,
@@ -444,22 +475,12 @@ for _, match in upcoming.iterrows():
             "history_B": stats_b["matches"],
 
             "predicted_winner": predicted_winner,
-
-            "model_probability": (
-                model_probability
-            ),
+            "model_probability": model_probability,
 
             "fair_odds": fair_odds,
-
             "market_odds": winner_odds,
-
-            "market_probability_raw": (
-                market_probability
-            ),
-
-            "probability_edge_raw": (
-                probability_edge
-            ),
+            "market_probability_raw": market_probability,
+            "probability_edge_raw": probability_edge,
 
             "status": status
         }
@@ -481,6 +502,7 @@ for _, row in results.iterrows():
     print("Start:", row["start"])
     print("Turniej:", row["tournament"])
     print("Nawierzchnia:", row["surface"])
+    print("Poziom modelu:", row["competition_level"])
 
     print(
         f"{row['player_A']} "

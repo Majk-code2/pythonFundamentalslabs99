@@ -2,12 +2,17 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict, deque
 
-FILES = [
-    "data/2022.csv",
-    "data/2023.csv",
-    "data/2024.csv",
-    "data/2025.csv",
-    "data/2026.csv"
+FILES = FILES = [
+    ("data/2022.csv", "ATP"),
+    ("data/2022_challenger.csv", "CHALLENGER"),
+    ("data/2023.csv", "ATP"),
+    ("data/2023_challenger.csv", "CHALLENGER"),
+    ("data/2024.csv", "ATP"),
+    ("data/2024_challenger.csv", "CHALLENGER"),
+    ("data/2025.csv", "ATP"),
+    ("data/2025_challenger.csv", "CHALLENGER"),
+    ("data/2026.csv", "ATP"),
+    ("data/2026_challenger.csv", "CHALLENGER")
 ]
 
 ROUND_ORDER = {
@@ -24,8 +29,19 @@ ROUND_ORDER = {
     "BR": 11
 }
 
+frames = []
+
+for file_path, competition_level in FILES:
+
+    frame = pd.read_csv(file_path)
+
+    frame["competition_level"] = competition_level
+
+    frames.append(frame)
+
+
 data = pd.concat(
-    [pd.read_csv(file) for file in FILES],
+    frames,
     ignore_index=True
 )
 
@@ -179,6 +195,7 @@ for (date, tournament_id), tournament in data.groupby(
 
             rows.append({
                 "tourney_date": date,
+                "competition_level": match["competition_level"],
                 "tourney_id": tournament_id,
                 "tourney_name": match["tourney_name"],
                 "round": match["round"],
@@ -274,8 +291,29 @@ dataset[feature_columns] = (
     dataset[feature_columns].fillna(0.0)
 )
 
+# Pelny dataset
 dataset.to_csv(
     "data/model_dataset_surface.csv",
+    index=False
+)
+
+# Osobny dataset ATP Tour
+dataset_atp = dataset[
+    dataset["competition_level"] == "ATP"
+].copy()
+
+dataset_atp.to_csv(
+    "data/model_dataset_surface_atp.csv",
+    index=False
+)
+
+# Osobny dataset Challenger
+dataset_challenger = dataset[
+    dataset["competition_level"] == "CHALLENGER"
+].copy()
+
+dataset_challenger.to_csv(
+    "data/model_dataset_surface_challenger.csv",
     index=False
 )
 
@@ -299,3 +337,11 @@ print(
 
 print("\nPlik zapisany:")
 print("data/model_dataset_surface.csv")
+
+print("\n===== PODZIAL ROZGRYWEK =====")
+print("ATP Tour:", len(dataset_atp))
+print("Challenger:", len(dataset_challenger))
+
+print("\nZapisano:")
+print("data/model_dataset_surface_atp.csv")
+print("data/model_dataset_surface_challenger.csv")
