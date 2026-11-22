@@ -538,6 +538,7 @@ for _, match in upcoming.iterrows():
 
     predictions.append(
         {
+            "match_id": match.get("match_id"),
             "start": match.get("start"),
             "tournament": match.get("tournament"),
             "surface": surface,
