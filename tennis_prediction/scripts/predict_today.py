@@ -164,7 +164,22 @@ for match in matches:
     print("Kurs B:", row["odds_B"])
 
 
-output = pd.DataFrame(usable_matches)
+output_columns = [
+    "match_id",
+    "start",
+    "tournament",
+    "player_A",
+    "player_B",
+    "rank_A",
+    "rank_B",
+    "odds_A",
+    "odds_B"
+]
+
+output = pd.DataFrame(
+    usable_matches,
+    columns=output_columns
+)
 
 output.to_csv(
     ROOT / "data" / "upcoming_atp.csv",

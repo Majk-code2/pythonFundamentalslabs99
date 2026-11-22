@@ -182,6 +182,31 @@ input_path = (
 
 matches = pd.read_csv(input_path)
 
+if matches.empty:
+    print("Brak nowych meczow do pobrania nawierzchni.")
+
+    output_path = (
+        ROOT
+        / "data"
+        / "upcoming_atp_with_surface.csv"
+    )
+
+    empty_columns = list(matches.columns) + [
+        "surface",
+        "competition_level",
+        "cito_tournament_name"
+    ]
+
+    pd.DataFrame(
+        columns=empty_columns
+    ).to_csv(
+        output_path,
+        index=False
+    )
+
+    print("Zapisano pusty plik:", output_path)
+    raise SystemExit(0)
+
 match_ids = (
     matches["match_id"]
     .dropna()

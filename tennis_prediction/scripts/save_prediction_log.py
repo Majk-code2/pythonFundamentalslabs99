@@ -26,7 +26,15 @@ if not CURRENT_FILE.exists():
     )
 
 
-current = pd.read_csv(CURRENT_FILE)
+if CURRENT_FILE.stat().st_size == 0:
+    print("Raport predykcji jest pusty. Brak danych do zapisania.")
+    raise SystemExit(0)
+
+try:
+    current = pd.read_csv(CURRENT_FILE)
+except pd.errors.EmptyDataError:
+    print("Raport predykcji nie ma kolumn. Brak danych do zapisania.")
+    raise SystemExit(0)
 
 if current.empty:
     print("Brak aktualnych predykcji do zapisania.")
