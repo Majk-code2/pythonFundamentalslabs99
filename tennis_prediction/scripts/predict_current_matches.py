@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from player_name_utils import normalize_player_name
 
 from pathlib import Path
 from collections import defaultdict, deque
@@ -8,12 +9,17 @@ from sklearn.linear_model import LogisticRegression
 
 ROOT = Path(__file__).resolve().parents[1]
 
-HISTORY_FILES = [
+HISTORY_FILES = HISTORY_FILES = [
     ROOT / "data" / "2022.csv",
+    ROOT / "data" / "2022_challenger.csv",
     ROOT / "data" / "2023.csv",
+    ROOT / "data" / "2023_challenger.csv",
     ROOT / "data" / "2024.csv",
+    ROOT / "data" / "2024_challenger.csv",
     ROOT / "data" / "2025.csv",
-    ROOT / "data" / "2026.csv"
+    ROOT / "data" / "2025_challenger.csv",
+    ROOT / "data" / "2026.csv",
+    ROOT / "data" / "2026_challenger.csv"
 ]
 
 UPCOMING_FILE = (
@@ -178,15 +184,11 @@ historical_data = historical_data.sort_values(
         "match_num"
     ]
 )
-
-
 # Budujemy aktualny stan historii zawodnikow
 for _, match in historical_data.iterrows():
-
     surface = match["surface"]
-
-    winner = match["winner_name"]
-    loser = match["loser_name"]
+    winner = normalize_player_name(match["winner_name"])
+    loser = normalize_player_name(match["loser_name"])
 
     winner_stats = create_match_stats(
         match,
@@ -208,6 +210,11 @@ for _, match in historical_data.iterrows():
         loser_stats
     )
 
+
+print(
+"Historyczni zawodnicy:",
+len(history)
+)
 
 print(
     "Historyczni zawodnicy:",
@@ -252,6 +259,20 @@ print("\n===== AKTUALNE MECZE =====")
 
 upcoming = pd.read_csv(UPCOMING_FILE)
 
+from datetime import datetime, timezone
+
+upcoming["start"] = pd.to_datetime(
+    upcoming["start"],
+    utc=True,
+    errors="coerce"
+)
+
+now_utc = datetime.now(timezone.utc)
+
+upcoming = upcoming[
+    upcoming["start"] > now_utc
+].copy()
+
 upcoming = upcoming[
     upcoming["surface"].isin(
         ["Hard", "Clay", "Grass"]
@@ -267,14 +288,18 @@ for _, match in upcoming.iterrows():
     player_a = match["player_A"]
     player_b = match["player_B"]
 
+    player_a_key = normalize_player_name(player_a)
+    player_b_key = normalize_player_name(player_b)
+
+
     surface = match["surface"]
 
     stats_a = summarize_history(
-        history[player_a][surface]
+        history[player_a_key][surface]
     )
 
     stats_b = summarize_history(
-        history[player_b][surface]
+        history[player_b_key][surface]
     )
 
     rank_a = match["rank_A"]
@@ -353,15 +378,22 @@ for _, match in upcoming.iterrows():
     )
 
 
-    # Kurs sprawdzamy tylko, jeśli istnieje
+       # Przygotowanie kursu i porownania z rynkiem
     market_probability = None
     probability_edge = None
     fair_odds = None
 
+    # Fair odds wynikajace z prawdopodobienstwa modelu
     if model_probability > 0:
         fair_odds = 1.0 / model_probability
 
-    if pd.notna(winner_odds) and winner_odds > 0:
+    # Akceptujemy tylko wiarygodny zakres kursow
+    valid_market_odds = (
+        pd.notna(winner_odds)
+        and 1.01 <= winner_odds <= 20.00
+    )
+
+    if valid_market_odds:
 
         market_probability = (
             1.0 / winner_odds
@@ -372,7 +404,15 @@ for _, match in upcoming.iterrows():
             - market_probability
         )
 
+    else:
 
+        # Podejrzany lub brakujacy kurs,
+        # np. 100.00, nie jest uzywany
+        winner_odds = None
+        market_probability = None
+        probability_edge = None
+
+    # Klasyfikacja predykcji
     if not enough_history:
         status = "POMIN: za malo historii"
 
