@@ -36,7 +36,32 @@ def get_json(path, params=None):
 # Pobieramy bieżące wydarzenia
 odds_data = get_json("/odds/upcoming")
 
-items = odds_data.get("items", [])
+items = (
+    odds_data.get("items")
+    or odds_data.get("data")
+    or []
+)
+
+print("Rekordy zwrocone przez Cito:", len(items))
+
+if items:
+    print(
+        "Wartosci pola tour:",
+        sorted(
+            {
+                str(item.get("tour"))
+                for item in items
+            }
+        )
+    )
+
+    print(
+        "Rekordy live:",
+        sum(
+            bool(item.get("live", False))
+            for item in items
+        )
+    )
 
 # Tylko nierozpoczęte single ATP z normalnymi ID zawodników
 matches = []
