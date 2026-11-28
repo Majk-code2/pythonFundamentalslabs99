@@ -22,6 +22,7 @@ HEADERS = {
 
 
 def get_json(path, params=None):
+
     response = requests.get(
         BASE_URL + path,
         headers=HEADERS,
@@ -29,7 +30,15 @@ def get_json(path, params=None):
         timeout=30
     )
 
-    response.raise_for_status()
+    if response.status_code != 200:
+
+        print("\n===== BLAD CITO API =====")
+        print("HTTP:", response.status_code)
+        print("Endpoint:", path)
+        print("Odpowiedz:", response.text[:500])
+
+        raise SystemExit(1)
+
     return response.json()
 
 
